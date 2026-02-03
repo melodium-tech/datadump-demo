@@ -10,6 +10,7 @@ jobs:
       command: |
         run .melodium-ci/Compo.toml --api_token "\"$CADENCE_API_TOKEN\"" --input_sql '"mock.sql"' --sql_query '"SELECT * FROM users"' --output_directory '"output"' --github_status 'true' --github_project '${{ toJSON(github.repository) }}' --github_sha '${{ toJSON(github.sha) }}' --github_token "\"$GITHUB_TOKEN\""
       artifact-path: 'logs/'
-    secrets: inherit
+    secrets:
+      token: ${{ secrets.token }}
     permissions:
       statuses: write
