@@ -1,0 +1,11 @@
+
+include:
+  - component: gitlab.com/melodium/gitlab-ci/melodium-local-distrib@v0.9.2
+    inputs:
+      job_name: melodium-ci
+      command: run ./Compo.toml --api_token "\"$CADENCE_API_TOKEN\""  --input_sql '"mock.sql"' --sql_query '"SELECT * FROM users"' --output_directory '"output"' --gitlab_status 'true' --gitlab_project_id "\"$CI_PROJECT_ID\"" --gitlab_sha "\"$CI_COMMIT_SHA\"" --gitlab_ref "\"$CI_COMMIT_REF_NAME\"" --gitlab_pipeline_id "\"$CI_PIPELINE_ID\"" --gitlab_root_url "\"$CI_API_V4_URL\"" --gitlab_token "\"$GITLAB_PAT\""
+
+melodium-ci:
+  artifacts:
+    paths:
+      - output

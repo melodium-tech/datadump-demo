@@ -1,0 +1,75 @@
+use cicd/logging::manageLogs
+use std/data/string_map::|entry
+use std/engine/util::startup
+use std/text/compose::|format
+use fs/local::writeLocal
+use root/mock_existing_db::connectAndDump
+use root/operations::restoreDump
+use log/logger::Logger
+
+treatment main(
+    const api_token: string,
+    const location: string = "compose",
+    var input_sql: string,
+    var sql_query: string,
+    var output_directory: string,
+    // github_* are for Github Status reporting
+    var github_status: bool = false,
+    var github_project: string = "",
+    var github_sha: string = "",
+    var github_token: string = "",
+    // gitlab_* are for GitLab Status reporting
+    var gitlab_status: bool = false,
+    var gitlab_pipeline_id: string = "",
+    var gitlab_project_id: string = "",
+    var gitlab_ref: string = "",
+    var gitlab_root_url: string = "",
+    var gitlab_sha: string = "",
+    var gitlab_token: string = ""
+)
+  model logger: Logger()
+{
+    startup()
+    manageLogs[logger=logger](output_directory=output_directory)
+
+    connectAndDump[logger=logger](
+      api_token=api_token,
+      location=location,
+      example_sql_file=input_sql,
+      output_directory=output_directory,
+      // Status reporting purposes
+      github_status=github_status,
+      github_project=github_project,
+      github_sha=github_sha,
+      github_token=github_token,
+      gitlab_status=gitlab_status,
+      gitlab_pipeline_id=gitlab_pipeline_id,
+      gitlab_project_id=gitlab_project_id,
+      gitlab_ref=gitlab_ref,
+      gitlab_root_url=gitlab_root_url,
+      gitlab_sha=gitlab_sha,
+      gitlab_token=gitlab_token
+    )
+    restoreDump[logger=logger](
+      api_token=api_token,
+      location=location,
+      sql_query=sql_query,
+      // Status reporting purposes
+      github_status=github_status,
+      github_project=github_project,
+      github_sha=github_sha,
+      github_token=github_token,
+      gitlab_status=gitlab_status,
+      gitlab_pipeline_id=gitlab_pipeline_id,
+      gitlab_project_id=gitlab_project_id,
+      gitlab_ref=gitlab_ref,
+      gitlab_root_url=gitlab_root_url,
+      gitlab_sha=gitlab_sha,
+      gitlab_token=gitlab_token
+    )
+
+    startup.trigger -> connectAndDump.trigger,dump -> restoreDump.dump,done -> manageLogs.stop
+
+    writeLocal(path=|format("{output_directory}/result.txt", |entry("output_directory", output_directory)))
+    restoreDump.query_result -> writeLocal.data
+}

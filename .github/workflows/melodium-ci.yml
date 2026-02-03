@@ -1,0 +1,15 @@
+name: melodium-ci
+
+on:
+  push:
+
+jobs:
+  melodium:
+    uses: melodium-tech/github-actions/.github/workflows/melodium-local-distrib.yml@v0.9.2
+    with:
+      command: |
+        run .melodium-ci/Compo.toml --api_token "\"$CADENCE_API_TOKEN\"" --input_sql '"mock.sql"' --sql_query '"SELECT * FROM users"' --output_directory '"output"' --github_status 'true' --github_project '${{ toJSON(github.repository) }}' --github_sha '${{ toJSON(github.sha) }}' --github_token "\"$GITHUB_TOKEN\""
+      artifact-path: 'logs/'
+    secrets: inherit
+    permissions:
+      statuses: write

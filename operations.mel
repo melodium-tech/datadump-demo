@@ -1,0 +1,142 @@
+use cicd/runners::CicdDispatchEngine
+use cicd/runners::CicdRunnerEngine
+use cicd/runners::setupRunner
+use cicd/runners::stopRunner
+use cicd/steps::stepOn
+use cicd/steps::stepOnWithInput
+use cicd/services::setServiceState
+use fs/local::readLocal
+use log/logger::Logger
+use process/command::|command
+use process/command::|raw_commands
+use process/environment::Environment
+use process/environment::|environment
+use std/data/string_map::StringMap
+use std/data/string_map::|entry
+use std/flow::trigger
+use std/ops/option::|wrap
+use work/resources::|container
+use work/resources::|mount
+use work/resources::|volume
+use work/resources::|service_container
+use work/resources/arch::|amd64
+
+treatment restoreDump[logger: Logger](
+    const api_token: string,
+    const location: string,
+    var sql_query: string,
+    // github_* are for Github Status reporting
+    var github_status: bool = false,
+    var github_project: string = "",
+    var github_sha: string = "",
+    var github_token: string = "",
+    // gitlab_* are for GitLab Status reporting
+    var gitlab_status: bool = false,
+    var gitlab_pipeline_id: string = "",
+    var gitlab_project_id: string = "",
+    var gitlab_ref: string = "",
+    var gitlab_root_url: string = "",
+    var gitlab_sha: string = "",
+    var gitlab_token: string = ""
+)
+  // Dispatcher defines what is in charge of spawning and reporting runners
+  model dispatcher: CicdDispatchEngine(api_token=api_token, location=location)
+  // Runner represents the running entity, that can be setup and stopped
+  model runner: CicdRunnerEngine()
+  input dump: Stream<byte>
+  output query_result: Stream<byte>
+  output done: Block<void>
+{
+    setupRunner[dispatcher=dispatcher, runner=runner, logger=logger](
+        name="restore",
+        cpu=100,
+        memory=1000,
+        storage=500,
+        volumes=[
+            |volume("dump", 100)
+        ],
+        containers=[
+            |container("psql-cli", 1000, 100, 1000, |amd64(), [|mount("dump", "/mnt/dump")], "alpine", _)
+        ],
+        service_containers=[
+            |service_container("postgres-new", 8000, 1000, 8000, |amd64(), [|mount("dump", "/mnt/dump")], "postgres:18", _, |wrap<StringMap>(|entry("POSTGRES_PASSWORD", "example_pwd")), _)
+        ]
+    )
+    stopRunner[runner=runner]()
+
+    loadDump: stepOnWithInput[runner=runner, logger=logger](
+        name="loadDump",
+        in_file="dump.data",
+        in_filesystem="dump",
+        executor_name="psql-cli",
+        commands=|raw_commands([
+            "apk add postgresql18-client",
+            "pg_restore --host postgres-new --username postgres --dbname postgres /mnt/dump/dump.data"
+        ]),
+        environment=|wrap<Environment>(|environment(|entry("PGPASSWORD", "example_pwd"), _, false, false))
+    )
+    queryData: stepOn[runner=runner, logger=logger](
+        name="queryData",
+        out_file="result.txt",
+        out_filesystem="dump",
+        executor_name="psql-cli",
+        commands=[
+            |command("psql", ["--no-psqlrc", "--host", "postgres-new", "--username", "postgres", "--command", sql_query, "--output", "/mnt/dump/result.txt", "postgres"])
+        ],
+        environment=|wrap<Environment>(|environment(|entry("PGPASSWORD", "example_pwd"), _, false, false))
+    )
+
+    trigger<byte>()
+
+    Self.dump -> trigger.stream,start -> setupRunner.trigger,ready -> loadDump.trigger,success -> queryData.trigger,finished -> Self.done
+    Self.dump ------------------------------------------------------> loadDump.data               queryData.data -------------> Self.query_result
+                                                                                                  queryData.finished ---------> stopRunner.trigger
+
+
+    loadDumpSetState: setServiceState[logger=logger](
+        name="Load Dumped Data",
+        description="Load PostgreSQL dump into new DB",
+        github=github_status,
+        github_project=github_project,
+        github_sha=github_sha,
+        github_token=github_token,
+        gitlab=gitlab_status,
+        gitlab_pipeline_id=gitlab_pipeline_id,
+        gitlab_project_id=gitlab_project_id,
+        gitlab_ref=gitlab_ref,
+        gitlab_root_url=gitlab_root_url,
+        gitlab_sha=gitlab_sha,
+        gitlab_token=gitlab_token,
+        log_response=true
+    )
+    queryDataSetState: setServiceState[logger=logger](
+        name="Query Dumped Data",
+        description="Query data loaded from dump",
+        github=github_status,
+        github_project=github_project,
+        github_sha=github_sha,
+        github_token=github_token,
+        gitlab=gitlab_status,
+        gitlab_pipeline_id=gitlab_pipeline_id,
+        gitlab_project_id=gitlab_project_id,
+        gitlab_ref=gitlab_ref,
+        gitlab_root_url=gitlab_root_url,
+        gitlab_sha=gitlab_sha,
+        gitlab_token=gitlab_token,
+        log_response=true
+    )
+
+    trigger.start -> loadDumpSetState.pending
+    setupRunner.failed -> loadDumpSetState.canceled
+    loadDump.started -> loadDumpSetState.running
+    loadDump.error -> loadDumpSetState.error
+    loadDump.failed -> loadDumpSetState.failed
+    loadDump.success -> loadDumpSetState.success
+
+    trigger.start -> queryDataSetState.pending
+    setupRunner.failed -> queryDataSetState.canceled
+    loadDump.success -> queryDataSetState.running
+    queryData.error -> queryDataSetState.error
+    queryData.failed -> queryDataSetState.failed
+    queryData.success -> queryDataSetState.success
+}
