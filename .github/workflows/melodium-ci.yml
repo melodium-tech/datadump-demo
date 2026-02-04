@@ -5,12 +5,14 @@ on:
 
 jobs:
   melodium:
-    uses: melodium-tech/github-actions/.github/workflows/melodium-local-distrib.yml@v0.9.2
+    uses: melodium-tech/github-actions/.github/workflows/melodium-local-distrib.yml@master
     with:
+      version: 0.9.2
       command: |
-        run .melodium-ci/Compo.toml --api_token "\"$CADENCE_API_TOKEN\"" --input_sql '"mock.sql"' --sql_query '"SELECT * FROM users"' --output_directory '"output"' --github_status 'true' --github_project '${{ toJSON(github.repository) }}' --github_sha '${{ toJSON(github.sha) }}' --github_token "\"$GITHUB_TOKEN\""
+        run Compo.toml --api_token "\"$MELODIUM_TOKEN\"" --input_sql '"mock.sql"' --sql_query '"SELECT * FROM users"' --output_directory '"output"' --github_status 'true' --github_project '${{ toJSON(github.repository) }}' --github_sha '${{ toJSON(github.sha) }}' --github_token "\"$GITHUB_TOKEN\""
       artifact-path: 'logs/'
     secrets:
-      token: ${{ secrets.token }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+      melodium-token: ""
     permissions:
       statuses: write
