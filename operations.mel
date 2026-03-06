@@ -6,7 +6,6 @@ use cicd/steps::stepOn
 use cicd/steps::stepOnWithInput
 use cicd/services::setServiceState
 use fs/local::readLocal
-use log/logger::Logger
 use process/command::|command
 use process/command::|raw_commands
 use process/environment::Environment
@@ -21,8 +20,8 @@ use work/resources::|volume
 use work/resources::|service_container
 use work/resources/arch::|amd64
 
-treatment restoreDump[logger: Logger](
-    const api_token: string,
+treatment restoreDump(
+    const api_token: Option<string>,
     const location: string,
     var sql_query: string,
     // github_* are for Github Status reporting
@@ -47,7 +46,7 @@ treatment restoreDump[logger: Logger](
   output query_result: Stream<byte>
   output done: Block<void>
 {
-    setupRunner[dispatcher=dispatcher, runner=runner, logger=logger](
+    setupRunner[dispatcher=dispatcher, runner=runner](
         name="restore",
         cpu=100,
         memory=1000,
@@ -64,7 +63,7 @@ treatment restoreDump[logger: Logger](
     )
     stopRunner[runner=runner]()
 
-    loadDump: stepOnWithInput[runner=runner, logger=logger](
+    loadDump: stepOnWithInput[runner=runner](
         name="loadDump",
         in_file="dump.data",
         in_filesystem="dump",
@@ -75,7 +74,7 @@ treatment restoreDump[logger: Logger](
         ]),
         environment=|wrap<Environment>(|environment(|entry("PGPASSWORD", "example_pwd"), _, false, false))
     )
-    queryData: stepOn[runner=runner, logger=logger](
+    queryData: stepOn[runner=runner](
         name="queryData",
         out_file="result.txt",
         out_filesystem="dump",
@@ -93,7 +92,7 @@ treatment restoreDump[logger: Logger](
                                                                                                   queryData.finished ---------> stopRunner.trigger
 
 
-    loadDumpSetState: setServiceState[logger=logger](
+    loadDumpSetState: setServiceState(
         name="Load Dumped Data",
         description="Load PostgreSQL dump into new DB",
         github=github_status,
@@ -109,7 +108,7 @@ treatment restoreDump[logger: Logger](
         gitlab_token=gitlab_token,
         log_response=true
     )
-    queryDataSetState: setServiceState[logger=logger](
+    queryDataSetState: setServiceState(
         name="Query Dumped Data",
         description="Query data loaded from dump",
         github=github_status,

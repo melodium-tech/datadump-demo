@@ -1,18 +1,16 @@
-use cicd/logging::manageLogs
 use std/data/string_map::|entry
 use std/engine/util::startup
 use std/text/compose::|format
 use fs/local::writeLocal
 use root/mock_existing_db::connectAndDump
 use root/operations::restoreDump
-use log/logger::Logger
 
 treatment main(
-    const api_token: string,
+    const api_token: Option<string>,
     const location: string = "compose",
+    var output_directory: string,
     var input_sql: string,
     var sql_query: string,
-    var output_directory: string,
     // github_* are for Github Status reporting
     var github_status: bool = false,
     var github_project: string = "",
@@ -27,12 +25,10 @@ treatment main(
     var gitlab_sha: string = "",
     var gitlab_token: string = ""
 )
-  model logger: Logger()
 {
     startup()
-    manageLogs[logger=logger](output_directory=output_directory)
 
-    connectAndDump[logger=logger](
+    connectAndDump(
       api_token=api_token,
       location=location,
       example_sql_file=input_sql,
@@ -50,7 +46,7 @@ treatment main(
       gitlab_sha=gitlab_sha,
       gitlab_token=gitlab_token
     )
-    restoreDump[logger=logger](
+    restoreDump(
       api_token=api_token,
       location=location,
       sql_query=sql_query,
@@ -68,7 +64,7 @@ treatment main(
       gitlab_token=gitlab_token
     )
 
-    startup.trigger -> connectAndDump.trigger,dump -> restoreDump.dump,done -> manageLogs.stop
+    startup.trigger -> connectAndDump.trigger,dump -> restoreDump.dump
 
     writeLocal(path=|format("{output_directory}/result.txt", |entry("output_directory", output_directory)))
     restoreDump.query_result -> writeLocal.data

@@ -6,7 +6,7 @@ This is demonstration code for dumping data.
 
 Install `melodium` command: https://melodium.tech/en/download
 
-`melodium run ./Compo.toml --api_token "\"$CADENCE_API_TOKEN\"" --location '"compose"' --input_sql '"mock.sql"' --sql_query '"SELECT * FROM users"' --output_directory '"output"'`
+`melodium run --api-report Compo.toml --input_sql mock.sql --sql_query 'SELECT * FROM users' --output_directory output`
 
 Main [entrypoint](https://doc.melodium.tech/book/en/programming/project_organization/entrypoints.html#entrypoints-parameters) is can be launched with more parameters
 
@@ -20,7 +20,7 @@ It is required to fill a variable `GITLAB_PAT` with personnal access token in or
 
 ## Cadence.CI
 
-`CADENCE_API_TOKEN` is for Cadence.CI information reporting and API exchange in case of remote execution: https://cadence.ci/en/dashboard/tokens
+`MELODIUM_API_TOKEN` is for Cadence.CI information reporting and API exchange in case of remote execution: https://cadence.ci/en/dashboard/tokens
 
-`--location` can either be `"compose"` (which makes use of local container Docker/Podman Compose command), or `"api"` (which pass through Cadence.CI API to connect to execution cluster): https://doc.melodium.tech/latest/en/cicd/runners/CicdDispatchEngine.html  
-In both cases, the api will get reports of the execution if the `CADENCE_API_TOKEN` is valid.
+`--location` can either be `compose` (which makes use of local container Docker/Podman Compose command), or `api` (which pass through Cadence.CI API to connect to execution cluster): https://doc.melodium.tech/latest/en/cicd/runners/CicdDispatchEngine.html  
+In both cases, the api will get reports of the execution if the `MELODIUM_API_TOKEN` is valid.

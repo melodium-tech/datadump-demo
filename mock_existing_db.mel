@@ -6,9 +6,8 @@ use cicd/steps::stepOn
 use cicd/steps::stepOnWithInput
 use cicd/services::setServiceState
 use fs/local::readLocal
-use log/logger::Logger
-use log/log::logError
-use log/log::logErrors
+use std/engine/log::logError
+use std/engine/log::logErrors
 use process/command::|raw_commands
 use process/environment::Environment
 use process/environment::|environment
@@ -21,8 +20,8 @@ use work/resources::|volume
 use work/resources::|service_container
 use work/resources/arch::|amd64
 
-treatment connectAndDump[logger: Logger](
-    const api_token: string,
+treatment connectAndDump(
+    const api_token: Option<string>,
     const location: string,
     var example_sql_file: string,
     var output_directory: string,
@@ -47,7 +46,7 @@ treatment connectAndDump[logger: Logger](
   input trigger: Block<void>
   output dump: Stream<byte>
 {
-    setupRunner[dispatcher=dispatcher, runner=runner, logger=logger](
+    setupRunner[dispatcher=dispatcher, runner=runner](
         name="db_mock",
         cpu=100,
         memory=1000,
@@ -66,7 +65,7 @@ treatment connectAndDump[logger: Logger](
     stopRunner[runner=runner]()
 
     readData: readLocal(path=example_sql_file)
-    loadData: stepOnWithInput[runner=runner, logger=logger](
+    loadData: stepOnWithInput[runner=runner](
         name="loadData",
         in_file="data.sql",
         in_filesystem="load",
@@ -78,7 +77,7 @@ treatment connectAndDump[logger: Logger](
         environment=|wrap<Environment>(|environment(|entry("PGPASSWORD", "example_pwd"), _, false, false))
     )
 
-    dumpData: stepOn[runner=runner, logger=logger](
+    dumpData: stepOn[runner=runner](
         name="dumpData",
         out_file="dump.data",
         out_filesystem="dump",
@@ -88,13 +87,13 @@ treatment connectAndDump[logger: Logger](
         ]),
         environment=|wrap<Environment>(|environment(|entry("PGPASSWORD", "example_pwd"), _, false, false))
     )
-    readLogErrors: logErrors[logger=logger](label="readData")
+    readLogErrors: logErrors(label="readData")
     readData.errors -> readLogErrors.messages
 
     Self.trigger -> setupRunner.trigger,ready -> readData.trigger,data -> loadData.data,success -> dumpData.trigger,data -> Self.dump
                     setupRunner.ready ----------------------------------> loadData.trigger         dumpData.finished -----> stopRunner.trigger
 
-    dumpDataSetState: setServiceState[logger=logger](
+    dumpDataSetState: setServiceState(
         name="Make Data Dump",
         description="Connect to PostgreSQL and make a DB dump",
         github=github_status,
